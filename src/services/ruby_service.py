@@ -38,6 +38,50 @@ def _split_okurigana(token: str):
 
     return prefix, core, suffix
 
+def _add_reading(surface: str, reading: str) -> str:
+    """
+    Annotate one token (`surface`) with its GiNZA reading (`reading`).
+
+    Handles arbitrary mixes of kanji / kana by consuming reading syllables
+    until the next kana in *surface* (or the end of the token).
+    """
+    reading_hira = jaconv.kata2hira(reading)
+    out, kanji_buf = [], []
+    s_idx = r_idx = 0
+
+    def flush(up_to: int):
+        """Emit the buffered kanji + their reading slice [r_idx : up_to)."""
+        nonlocal kanji_buf, r_idx
+        if kanji_buf:
+            core = ''.join(kanji_buf)
+            out.append(
+                f"<ruby><rb>{html.escape(core)}</rb>"
+                f"<rt>{html.escape(reading_hira[r_idx:up_to])}</rt></ruby>"
+            )
+            kanji_buf.clear()
+            r_idx = up_to
+
+    while s_idx < len(surface):
+        ch = surface[s_idx]
+
+        if KANJI_RE.match(ch):
+            kanji_buf.append(ch)
+            s_idx += 1
+            continue
+
+        next_pos = reading_hira.find(jaconv.kata2hira(ch), r_idx)
+        if next_pos == -1:
+            next_pos = len(reading_hira)
+
+        flush(next_pos)
+        out.append(html.escape(ch))
+        r_idx = next_pos + 1
+        s_idx += 1
+
+    flush(len(reading_hira))
+    return ''.join(out)
+
+
 # --- main class ------------------------------------------------------------
 
 # TODO : Add a docstring, Filters for omitting words.
@@ -48,6 +92,7 @@ class RubyService(NLPService):
     """
     def __init__(self, spacy_model: str = 'ja_ginza_electra'):
         super().__init__(spacy_model)
+        self._mode = "hiragana"
 
 
     def annotate_html(self, text: str) -> str:
@@ -68,26 +113,16 @@ class RubyService(NLPService):
                 parts.append(html.escape(surface))
                 continue
 
-            reading_hira = jaconv.kata2hira(reading)
-            prefix, core, suffix = _split_okurigana(surface)
-
-            if core and reading_hira.startswith(jaconv.hira2kata(prefix)) and reading_hira.endswith(suffix):
-                core_reading = reading_hira[len(prefix):len(reading_hira) - len(suffix)]
-            else:
-                prefix = ""
-                core = surface
-                suffix = ""
-                core_reading = reading_hira
-
-            if prefix:
-                parts.append(html.escape(prefix))
-
-            parts.append(
-                f"<ruby><rb>{html.escape(core)}</rb>"
-                f"<rt>{html.escape(core_reading)}</rt></ruby>"
-            )
-
-            if suffix:
-                parts.append(html.escape(suffix))
+            parts.append(_add_reading(surface, reading))
 
         return ''.join(parts)
+
+    def set_mode(self, mode: str):
+        """
+        Set the reading mode for the RubyService.
+        :param mode: The reading mode to set ('hiragana' or 'romaji').
+        """
+        if mode == "hiragana" or mode == "romaji" or mode == "katakana":
+            self._mode = mode
+        else:
+            raise ValueError("Invalid mode. Use 'hiragana' or 'romaji'.")
