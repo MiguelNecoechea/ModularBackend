@@ -36,6 +36,21 @@ class NLPApplication:
             annotated_text = self.ruby_service.annotate_html(request.text)
             return HTMLResponse(content=annotated_text, status_code=200)
 
+        @self.app.post("/change_reading_mode", response_class=HTMLResponse)
+        async def change_reading_mode(request: TextRequest):
+            """
+            Change the reading mode of the RubyService.
+            :param request: The request containing the new reading mode.
+            :return: True if the reading mode was changed successfully, False otherwise.
+            """
+            if request.text == "hiragana":
+                self.ruby_service.set_mode("hiragana")
+            elif request.text == "romaji":
+                self.ruby_service.set_mode("romaji")
+            else:
+                return HTMLResponse(content="Invalid mode. Use 'hiragana' or 'romaji'.", status_code=400)
+            return HTMLResponse(content="Reading mode changed successfully.", status_code=200)
+
 
 def create_app():
     return NLPApplication().app
