@@ -7,38 +7,7 @@ from .nlp_service import NLPService
 KANJI_RE = re.compile(r'[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]')
 
 # --- helpers ---------------------------------------------------------------
-
-def _is_kana(ch: str) -> bool:
-    """
-    Check if a character is a Kana character (Hiragana or Katakana).
-    :param ch: The character to check.
-    :return: A boolean indicating if the character is Kana.
-    """
-    return '\u3040' <= ch <= '\u30FF'
-
-def _split_okurigana(token: str):
-    """
-    Split <prefix_kana><kanji_core><suffix_kana> -->
-           (prefix, kanji_core, suffix)
-
-    Either prefix or suffix can be "".
-    """
-    # strip prefix kana
-    i = 0
-    while i < len(token) and _is_kana(token[i]):
-        i += 1
-    prefix = token[:i]
-
-    # strip suffix kana
-    j = len(token)
-    while j > i and _is_kana(token[j - 1]):
-        j -= 1
-    suffix = token[j:]
-    core = token[i:j]           # may be 1-char kanji, or multi-kanji string
-
-    return prefix, core, suffix
-
-def _add_reading(surface: str, reading: str) -> str:
+def _add_reading(surface: str, reading: str, mode: str) -> str:
     """
     Annotate one token (`surface`) with its GiNZA reading (`reading`).
 
@@ -54,9 +23,15 @@ def _add_reading(surface: str, reading: str) -> str:
         nonlocal kanji_buf, r_idx
         if kanji_buf:
             core = ''.join(kanji_buf)
+            final_reading = reading_hira[r_idx:up_to]
+            if mode == "katakana":
+                final_reading = jaconv.hira2kata(final_reading)
+            elif mode == "romaji":
+                final_reading = jaconv.kana2alphabet(final_reading)
+
             out.append(
                 f"<ruby><rb>{html.escape(core)}</rb>"
-                f"<rt>{html.escape(reading_hira[r_idx:up_to])}</rt></ruby>"
+                f"<rt>{html.escape(final_reading)}</rt></ruby>"
             )
             kanji_buf.clear()
             r_idx = up_to
@@ -92,7 +67,7 @@ class RubyService(NLPService):
     """
     def __init__(self, spacy_model: str = 'ja_ginza_electra'):
         super().__init__(spacy_model)
-        self._mode = "hiragana"
+        self._mode = "hiragana"  # Default reading mode
 
 
     def annotate_html(self, text: str) -> str:
@@ -113,7 +88,7 @@ class RubyService(NLPService):
                 parts.append(html.escape(surface))
                 continue
 
-            parts.append(_add_reading(surface, reading))
+            parts.append(_add_reading(surface, reading, self._mode))
 
         return ''.join(parts)
 

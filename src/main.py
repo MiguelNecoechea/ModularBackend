@@ -40,13 +40,16 @@ class NLPApplication:
         async def change_reading_mode(request: TextRequest):
             """
             Change the reading mode of the RubyService.
-            :param request: The request containing the new reading mode.
+            :param request: The request contains the new reading mode.
             :return: True if the reading mode was changed successfully, False otherwise.
             """
+            print(request.text)
             if request.text == "hiragana":
                 self.ruby_service.set_mode("hiragana")
             elif request.text == "romaji":
                 self.ruby_service.set_mode("romaji")
+            elif request.text == "katakana":
+                self.ruby_service.set_mode("katakana")
             else:
                 return HTMLResponse(content="Invalid mode. Use 'hiragana' or 'romaji'.", status_code=400)
             return HTMLResponse(content="Reading mode changed successfully.", status_code=200)
