@@ -19,38 +19,41 @@ def _add_reading(surface: str, reading: str, mode: str) -> str:
     s_idx = r_idx = 0
 
     def flush(up_to: int):
-        """Emit the buffered kanji + their reading slice [r_idx : up_to)."""
-        nonlocal kanji_buf, r_idx
-        if kanji_buf:
-            core = ''.join(kanji_buf)
-            final_reading = reading_hira[r_idx:up_to]
-            if mode == "katakana":
-                final_reading = jaconv.hira2kata(final_reading)
-            elif mode == "romaji":
-                final_reading = jaconv.kana2alphabet(final_reading)
+        """Emit the buffered kanji + their reading slice [old_r_idx : up_to)."""
 
-            out.append(
-                f"<ruby><rb>{html.escape(core)}</rb>"
-                f"<rt>{html.escape(final_reading)}</rt></ruby>"
-            )
-            kanji_buf.clear()
-            r_idx = up_to
+        nonlocal kanji_buf, r_idx
+        if not kanji_buf:
+            return
+        core = ''.join(kanji_buf)
+        final = reading_hira[r_idx:up_to]
+        if mode == "katakana":
+            final = jaconv.hira2kata(final)
+        elif mode == "romaji":
+            final = jaconv.kana2alphabet(final)
+
+        out.append(
+            f"<ruby><rb>{html.escape(core)}</rb>"
+            f"<rt>{html.escape(final)}</rt></ruby>"
+        )
+        kanji_buf.clear()
+        r_idx = up_to
 
     while s_idx < len(surface):
         ch = surface[s_idx]
 
         if KANJI_RE.match(ch):
             kanji_buf.append(ch)
-            s_idx += 1
-            continue
+        else:
+            kana = jaconv.kata2hira(ch)
+            start = r_idx if not kanji_buf else r_idx + 1
+            next_pos = reading_hira.find(kana, start)
+            if next_pos == -1:
+                next_pos = len(reading_hira)
 
-        next_pos = reading_hira.find(jaconv.kata2hira(ch), r_idx)
-        if next_pos == -1:
-            next_pos = len(reading_hira)
+            flush(next_pos)
 
-        flush(next_pos)
-        out.append(html.escape(ch))
-        r_idx = next_pos + 1
+            out.append(html.escape(ch))
+            r_idx = next_pos + 1
         s_idx += 1
 
     flush(len(reading_hira))
