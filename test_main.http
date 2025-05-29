@@ -1,14 +1,6 @@
 # ─── Test Japanese Tokenization + Reading ───────────────────────────────────────
 #### Test JSON Tokenize Endpoint
-#POST http://localhost:8000/tokenize
-#Content-Type: application/json
-#
-#{
-#  "text": "煙草の空き箱を捨てる"
-#}
-
-### Test HTML Ruby Annotation Endpoint
-POST http://localhost:8000/annotate_html
+POST http://localhost:8000/tokenize
 Content-Type: application/json
 
 {
